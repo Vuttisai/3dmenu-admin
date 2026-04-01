@@ -13,6 +13,8 @@ const AnnotationsEditor = ({ item, onClose, onSaved }) => {
     const [placingIndex, setPlacingIndex] = useState(null);    // which annotation is being placed
     const modelViewerRef = useRef(null);
 
+    const modelSrc = item.model_url_android || "";
+
     useEffect(() => {
         try {
             const parsed = typeof item.annotations === "string" ? JSON.parse(item.annotations) : (item.annotations || []);
@@ -21,28 +23,79 @@ const AnnotationsEditor = ({ item, onClose, onSaved }) => {
         setEnabled(!!item.annotations_enabled);
     }, [item]);
 
-    // ── Model analysis ─────────────────────────────────────
-    const onModelLoad = useCallback(() => {
+    // ── Model analysis — use addEventListener (React onLoad doesn't work on web components) ──
+    const extractDimensions = useCallback((mv) => {
+        if (!mv || modelLoaded) return;
+        try {
+            const size = mv.getDimensions();
+            // getDimensions returns {x,y,z} — if all zeros, model isn't ready yet
+            if (size.x === 0 && size.y === 0 && size.z === 0) return;
+
+            let center = { x: 0, y: 0, z: 0 };
+            try { center = mv.getBoundingBoxCenter(); } catch { }
+
+            setModelDimensions({
+                width: size.x, height: size.y, depth: size.z,
+                centerX: center.x, centerY: center.y, centerZ: center.z,
+            });
+            setModelLoaded(true);
+        } catch (e) {
+            console.warn("Model dimensions not ready:", e);
+        }
+    }, [modelLoaded]);
+
+    // Attach load listener + polling fallback
+    useEffect(() => {
+        const mv = modelViewerRef.current;
+        if (!mv || !modelSrc) return;
+
+        const handleLoad = () => extractDimensions(mv);
+
+        mv.addEventListener('load', handleLoad);
+
+        // Polling fallback — checks every 500ms if model is ready
+        const interval = setInterval(() => {
+            try {
+                if (mv.loaded || (mv.getDimensions && mv.getDimensions().x > 0)) {
+                    extractDimensions(mv);
+                    clearInterval(interval);
+                }
+            } catch { }
+        }, 500);
+
+        return () => {
+            mv.removeEventListener('load', handleLoad);
+            clearInterval(interval);
+        };
+    }, [modelSrc, extractDimensions]);
+
+    // Attach click handler via addEventListener (web component)
+    useEffect(() => {
         const mv = modelViewerRef.current;
         if (!mv) return;
-        setModelLoaded(true);
 
-        // Get real model dimensions
-        try {
-            const center = mv.getBoundingBoxCenter();
-            const size = mv.getDimensions();
-            setModelDimensions({
-                width: size.x,
-                height: size.y,
-                depth: size.z,
-                centerX: center.x,
-                centerY: center.y,
-                centerZ: center.z,
-            });
-        } catch (e) {
-            console.warn("Could not get model dimensions:", e);
-        }
-    }, []);
+        const onClick = (event) => {
+            if (!placingMode || placingIndex === null) return;
+            const rect = mv.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const hit = mv.positionAndNormalFromPoint(x, y);
+            if (hit) {
+                const pos = `${hit.position.x.toFixed(4)}m ${hit.position.y.toFixed(4)}m ${hit.position.z.toFixed(4)}m`;
+                const norm = `${hit.normal.x.toFixed(2)} ${hit.normal.y.toFixed(2)} ${hit.normal.z.toFixed(2)}`;
+                setAnnotations(prev => {
+                    const updated = [...prev];
+                    updated[placingIndex] = { ...updated[placingIndex], position: pos, normal: norm, auto: "Placed on model" };
+                    return updated;
+                });
+                setPlacingMode(false);
+                setPlacingIndex(null);
+            }
+        };
+
+        mv.addEventListener('click', onClick);
+        return () => mv.removeEventListener('click', onClick);
+    }, [placingMode, placingIndex]);
 
     // ── Auto-generate positions based on actual model geometry ──
     const autoGeneratePositions = () => {
@@ -66,36 +119,6 @@ const AnnotationsEditor = ({ item, onClose, onSaved }) => {
 
         setAnnotations(autoPositions);
     };
-
-    // ── Click-to-place: user clicks on the 3D model to set position ──
-    const handleModelClick = useCallback((event) => {
-        if (!placingMode || placingIndex === null) return;
-
-        const mv = modelViewerRef.current;
-        if (!mv) return;
-
-        // Get the click coordinates relative to the model-viewer element
-        const rect = mv.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
-        // Use model-viewer API to get 3D position from 2D click
-        const hit = mv.positionAndNormalFromPoint(x, y);
-        if (hit) {
-            const pos = `${hit.position.x.toFixed(4)}m ${hit.position.y.toFixed(4)}m ${hit.position.z.toFixed(4)}m`;
-            const norm = `${hit.normal.x.toFixed(2)} ${hit.normal.y.toFixed(2)} ${hit.normal.z.toFixed(2)}`;
-
-            setAnnotations(prev => {
-                const updated = [...prev];
-                updated[placingIndex] = { ...updated[placingIndex], position: pos, normal: norm, auto: "Placed on model" };
-                return updated;
-            });
-
-            // Exit placing mode
-            setPlacingMode(false);
-            setPlacingIndex(null);
-        }
-    }, [placingMode, placingIndex]);
 
     const startPlacing = (index) => {
         setPlacingMode(true);
@@ -148,7 +171,7 @@ const AnnotationsEditor = ({ item, onClose, onSaved }) => {
         }
     };
 
-    const modelSrc = item.model_url_android || "";
+
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
@@ -197,9 +220,9 @@ const AnnotationsEditor = ({ item, onClose, onSaved }) => {
                                 interaction-prompt="none"
                                 camera-orbit="30deg 65deg auto"
                                 auto-rotate
+                                loading="eager"
+                                reveal="auto"
                                 style={{ width: "100%", height: "220px", backgroundColor: "#f9f9f9", cursor: placingMode ? "crosshair" : "grab" }}
-                                onLoad={() => onModelLoad()}
-                                onClick={(e) => handleModelClick(e)}
                             >
                                 {/* Show current annotations as live preview */}
                                 {annotations.map((ann, i) => (
