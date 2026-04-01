@@ -2,17 +2,18 @@ import React, { useState, useEffect } from "react";
 import { X, Plus, Trash2, Save, Loader2, Tag, ToggleLeft, ToggleRight, Info, Move } from "lucide-react";
 import { updateAnnotations } from "../lib/api";
 
-// Preset positions for food dish hotspots (centered dish, annotations around it)
+// Preset positions — tightly positioned on/near the dish surface
+// Food models are typically 0.1–0.3m wide, so hotspots must be very close
 const PRESET_POSITIONS = [
-    { label: "Top Center", position: "0m 0.12m 0m", normal: "0 1 0" },
-    { label: "Top Left", position: "-0.08m 0.1m 0.04m", normal: "0 1 0.2" },
-    { label: "Top Right", position: "0.08m 0.1m 0.04m", normal: "0 1 0.2" },
-    { label: "Front", position: "0m 0.06m 0.1m", normal: "0 0.3 1" },
-    { label: "Left Side", position: "-0.1m 0.06m 0m", normal: "-1 0.3 0" },
-    { label: "Right Side", position: "0.1m 0.06m 0m", normal: "1 0.3 0" },
-    { label: "Back Left", position: "-0.06m 0.08m -0.06m", normal: "0 1 -0.3" },
-    { label: "Back Right", position: "0.06m 0.08m -0.06m", normal: "0 1 -0.3" },
-    { label: "Center", position: "0m 0.08m 0m", normal: "0 1 0" },
+    { label: "Top Center", position: "0m 0.04m 0m", normal: "0 1 0" },
+    { label: "Top Left", position: "-0.04m 0.035m 0.02m", normal: "-0.3 1 0.2" },
+    { label: "Top Right", position: "0.04m 0.035m 0.02m", normal: "0.3 1 0.2" },
+    { label: "Front", position: "0m 0.02m 0.05m", normal: "0 0.3 1" },
+    { label: "Left", position: "-0.05m 0.02m 0m", normal: "-1 0.5 0" },
+    { label: "Right", position: "0.05m 0.02m 0m", normal: "1 0.5 0" },
+    { label: "Back Left", position: "-0.03m 0.03m -0.03m", normal: "-0.3 1 -0.3" },
+    { label: "Back Right", position: "0.03m 0.03m -0.03m", normal: "0.3 1 -0.3" },
+    { label: "Center", position: "0m 0.025m 0m", normal: "0 1 0" },
 ];
 
 const AnnotationsEditor = ({ item, onClose, onSaved }) => {
