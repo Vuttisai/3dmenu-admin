@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, Edit2, Trash2, Search, X, Save, Loader2, Eye, EyeOff, Star, Smartphone, Monitor } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, X, Save, Loader2, Eye, EyeOff, Star, Smartphone, Monitor, Tag } from "lucide-react";
 import { fetchAllMenuItems, createMenuItem, updateMenuItem, deleteMenuItem } from "../lib/api";
+import AnnotationsEditor from "../components/AnnotationsEditor";
 
 const CATEGORIES = ["Starters", "Main Course", "Desserts", "Beverages", "Sides"];
 
@@ -21,6 +22,7 @@ const MenuManagement = () => {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [error, setError] = useState(null);
+  const [annotationsItem, setAnnotationsItem] = useState(null);
 
   const loadItems = useCallback(async () => {
     try {
@@ -158,7 +160,7 @@ const MenuManagement = () => {
                       <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">{item.category}</span>
                     </div>
                   </div>
-                  {/* Model links indicators */}
+                  {/* Model links & annotation indicators */}
                   <div className="flex gap-2 mt-2 flex-wrap">
                     {item.model_url_android && (
                       <span className="inline-flex items-center gap-1 text-[10px] bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">
@@ -170,14 +172,19 @@ const MenuManagement = () => {
                         <Smartphone size={10} /> iOS AR
                       </span>
                     )}
+                    {(() => { try { const a = typeof item.annotations === 'string' ? JSON.parse(item.annotations) : (item.annotations || []); if (a.length > 0) return (<span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium ${item.annotations_enabled ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-500'}`}><Tag size={10} /> {a.length} labels {item.annotations_enabled ? '✓' : '(off)'}</span>); } catch { return null; } return null; })()}
                   </div>
                 </div>
               </div>
               {/* Actions */}
-              <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-gray-50">
+              <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-gray-50 flex-wrap">
                 <button onClick={() => handleToggleActive(item)}
                   className={`p-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${item.is_active ? "text-gray-500 hover:bg-gray-100" : "text-green-600 hover:bg-green-50"}`}>
                   {item.is_active ? <><EyeOff size={14} /> Hide</> : <><Eye size={14} /> Show</>}
+                </button>
+                <button onClick={() => setAnnotationsItem(item)}
+                  className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors">
+                  <Tag size={14} /> Labels
                 </button>
                 <button onClick={() => openEdit(item)}
                   className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors">
@@ -290,6 +297,15 @@ const MenuManagement = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Annotations Editor */}
+      {annotationsItem && (
+        <AnnotationsEditor
+          item={annotationsItem}
+          onClose={() => setAnnotationsItem(null)}
+          onSaved={loadItems}
+        />
       )}
     </div>
   );

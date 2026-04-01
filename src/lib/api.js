@@ -47,6 +47,17 @@ export async function deleteMenuItem(id) {
   return data;
 }
 
+export async function updateAnnotations(id, annotations, annotations_enabled) {
+  const res = await fetch(`${API_BASE}/api/menu-items/${id}/annotations`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ annotations, annotations_enabled }),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  return data;
+}
+
 // ── Analytics ───────────────────────────────────────
 
 export async function trackEvent(eventData) {
